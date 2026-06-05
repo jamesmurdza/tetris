@@ -157,6 +157,7 @@
         cooldown: 0,
         spawnTimer: 0,
         gameOver: false,
+        muzzleFlash: 0,
       };
 
       const player = {
@@ -225,6 +226,7 @@
       function shoot() {
         if (state.cooldown > 0 || state.gameOver) return;
         state.cooldown = 0.18;
+        state.muzzleFlash = 0.08;
         bullets.push({
           x: player.x + Math.cos(player.angle) * 1.2,
           z: player.z + Math.sin(player.angle) * 1.2,
@@ -238,6 +240,8 @@
       function update(dt) {
         state.time += dt;
         if (state.gameOver) return;
+
+        state.muzzleFlash = Math.max(0, state.muzzleFlash - dt);
 
         if (keys.has("ArrowLeft")) player.angle -= 1.9 * dt;
         if (keys.has("ArrowRight")) player.angle += 1.9 * dt;
@@ -443,6 +447,13 @@
         ctx.translate(x, y);
         ctx.rotate(-0.08 + Math.sin(state.time * 10) * 0.015);
 
+        if (state.muzzleFlash > 0) {
+          ctx.fillStyle = "rgba(255, 240, 160, 0.9)";
+          ctx.beginPath();
+          ctx.arc(76, 0, 18, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
         ctx.fillStyle = "#1b2333";
         ctx.fillRect(-60, -14, 120, 28);
         ctx.fillStyle = "#3e4d67";
@@ -490,10 +501,10 @@
         requestAnimationFrame(loop);
       }
 
-      window.addEventListener("keydown", (e) => {
+      function handleKeyDown(e) {
         keys.add(e.code);
 
-        if (e.code === "Space" || e.key === " ") {
+        if (e.code === "Space" || e.key === " " || e.key === "Spacebar") {
           e.preventDefault();
           shoot();
         }
@@ -503,16 +514,23 @@
         }
 
         if (e.code === "KeyR") reset();
-      });
+      }
 
-      window.addEventListener("keyup", (e) => {
+      function handleKeyUp(e) {
         if (e.code === "Space") e.preventDefault();
         keys.delete(e.code);
-      });
+      }
+
+      window.addEventListener("keydown", handleKeyDown);
+      document.addEventListener("keydown", handleKeyDown);
+      window.addEventListener("keyup", handleKeyUp);
+      document.addEventListener("keyup", handleKeyUp);
+      window.addEventListener("pointerdown", shoot);
       window.addEventListener("resize", resize);
 
       resize();
       reset();
+      window.focus();
       requestAnimationFrame(loop);
     </script>
   </body>
