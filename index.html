@@ -371,15 +371,64 @@
         ctx.fillStyle = g;
         ctx.fillRect(0, 0, state.width, state.height);
 
-        ctx.fillStyle = "rgba(10, 14, 20, 0.95)";
-        ctx.fillRect(0, state.height * 0.55, state.width, state.height * 0.45);
-
-        const horizon = state.height * 0.34;
+        const horizon = state.height * 0.36;
         const skyGlow = ctx.createRadialGradient(state.width * 0.5, horizon, 20, state.width * 0.5, horizon, state.width * 0.7);
         skyGlow.addColorStop(0, "rgba(95, 150, 255, 0.18)");
         skyGlow.addColorStop(1, "rgba(95, 150, 255, 0)");
         ctx.fillStyle = skyGlow;
         ctx.fillRect(0, 0, state.width, state.height * 0.7);
+
+        // Distant mountain silhouettes
+        function drawMountainBand(points, fill, offsetY = 0) {
+          ctx.fillStyle = fill;
+          ctx.beginPath();
+          ctx.moveTo(0, state.height);
+          ctx.lineTo(0, horizon + offsetY);
+          for (const [px, py] of points) {
+            ctx.lineTo(px, horizon + py + offsetY);
+          }
+          ctx.lineTo(state.width, horizon + offsetY);
+          ctx.lineTo(state.width, state.height);
+          ctx.closePath();
+          ctx.fill();
+        }
+
+        const w = state.width;
+        drawMountainBand(
+          [
+            [0, 36],
+            [w * 0.12, -26],
+            [w * 0.22, 8],
+            [w * 0.34, -42],
+            [w * 0.46, 16],
+            [w * 0.6, -18],
+            [w * 0.72, 24],
+            [w * 0.86, -28],
+            [w, 14],
+          ],
+          "rgba(21, 31, 48, 0.92)",
+          -14,
+        );
+
+        drawMountainBand(
+          [
+            [0, 64],
+            [w * 0.09, 10],
+            [w * 0.18, 42],
+            [w * 0.29, -4],
+            [w * 0.41, 34],
+            [w * 0.52, -12],
+            [w * 0.67, 28],
+            [w * 0.8, -8],
+            [w * 0.92, 30],
+            [w, 16],
+          ],
+          "rgba(12, 19, 31, 0.98)",
+          22,
+        );
+
+        ctx.fillStyle = "rgba(10, 14, 20, 0.95)";
+        ctx.fillRect(0, state.height * 0.55, state.width, state.height * 0.45);
       }
 
       function drawGrid() {
