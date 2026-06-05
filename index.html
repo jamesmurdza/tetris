@@ -378,62 +378,38 @@
         ctx.fillStyle = skyGlow;
         ctx.fillRect(0, 0, state.width, state.height * 0.7);
 
-        // Distant mountain silhouettes that move one-to-one with turning
-        function drawMountainBand(points, fill, offsetY = 0) {
-          const w = state.width;
-          const shift = -player.angle * (w / (Math.PI * 2));
-
-          for (const wrap of [-w, 0, w]) {
-            ctx.fillStyle = fill;
-            ctx.beginPath();
-            ctx.moveTo(0, state.height);
-            ctx.lineTo(0, horizon + offsetY);
-            for (const [px, py] of points) {
-              ctx.lineTo(px + shift + wrap, horizon + py + offsetY);
-            }
-            ctx.lineTo(w, horizon + offsetY);
-            ctx.lineTo(w, state.height);
-            ctx.closePath();
-            ctx.fill();
-          }
-        }
-
-        const w = state.width;
-        drawMountainBand(
-          [
-            [0, 36],
-            [w * 0.12, -26],
-            [w * 0.22, 8],
-            [w * 0.34, -42],
-            [w * 0.46, 16],
-            [w * 0.6, -18],
-            [w * 0.72, 24],
-            [w * 0.86, -28],
-            [w, 14],
-          ],
-          "rgba(21, 31, 48, 0.92)",
-          -14,
-        );
-
-        drawMountainBand(
-          [
-            [0, 64],
-            [w * 0.09, 10],
-            [w * 0.18, 42],
-            [w * 0.29, -4],
-            [w * 0.41, 34],
-            [w * 0.52, -12],
-            [w * 0.67, 28],
-            [w * 0.8, -8],
-            [w * 0.92, 30],
-            [w, 16],
-          ],
-          "rgba(12, 19, 31, 0.98)",
-          22,
-        );
-
         ctx.fillStyle = "rgba(10, 14, 20, 0.95)";
         ctx.fillRect(0, state.height * 0.55, state.width, state.height * 0.45);
+      }
+
+      function drawMountains() {
+        const mountains = [
+          { x: -38, z: 90, w: 18, h: 10, c: "rgba(21, 31, 48, 0.92)" },
+          { x: -14, z: 96, w: 24, h: 15, c: "rgba(21, 31, 48, 0.92)" },
+          { x: 10, z: 88, w: 20, h: 12, c: "rgba(21, 31, 48, 0.92)" },
+          { x: 34, z: 98, w: 28, h: 18, c: "rgba(21, 31, 48, 0.92)" },
+          { x: 58, z: 92, w: 22, h: 13, c: "rgba(21, 31, 48, 0.92)" },
+          { x: 82, z: 100, w: 30, h: 19, c: "rgba(21, 31, 48, 0.92)" },
+          { x: -28, z: 120, w: 26, h: 16, c: "rgba(12, 19, 31, 0.98)" },
+          { x: 2, z: 126, w: 34, h: 22, c: "rgba(12, 19, 31, 0.98)" },
+          { x: 40, z: 118, w: 28, h: 17, c: "rgba(12, 19, 31, 0.98)" },
+          { x: 74, z: 132, w: 38, h: 24, c: "rgba(12, 19, 31, 0.98)" },
+        ];
+
+        for (const m of mountains) {
+          const baseL = project(m.x - m.w, 0, m.z);
+          const peak = project(m.x, m.h, m.z);
+          const baseR = project(m.x + m.w, 0, m.z);
+          if (!baseL || !peak || !baseR) continue;
+
+          ctx.fillStyle = m.c;
+          ctx.beginPath();
+          ctx.moveTo(baseL.x, baseL.y);
+          ctx.lineTo(peak.x, peak.y);
+          ctx.lineTo(baseR.x, baseR.y);
+          ctx.closePath();
+          ctx.fill();
+        }
       }
 
       function drawGrid() {
@@ -565,6 +541,7 @@
 
       function render() {
         drawBackground();
+        drawMountains();
         drawGrid();
         drawEnemies();
         drawBullets();
