@@ -170,6 +170,7 @@
 
       let bullets = [];
       let enemies = [];
+      let explosions = [];
 
       const keys = new Set();
 
@@ -189,6 +190,7 @@
         player.angle = 0;
         bullets = [];
         enemies = [];
+        explosions = [];
         state.score = 0;
         state.hp = 100;
         state.cooldown = 0;
@@ -220,6 +222,16 @@
           y: 0,
           hp: 1,
           speed: rand(1.0, 2.2) + state.score * 0.01,
+        });
+      }
+
+      function addExplosion(x, z) {
+        explosions.push({
+          x,
+          z,
+          life: 0.45,
+          maxLife: 0.45,
+          size: rand(0.8, 1.4),
         });
       }
 
@@ -256,6 +268,7 @@
 
         if (bestEnemy) {
           bestEnemy.hp = 0;
+          addExplosion(bestEnemy.x, bestEnemy.z);
           state.score += 10;
         }
 
@@ -274,6 +287,11 @@
         if (state.gameOver) return;
 
         state.muzzleFlash = Math.max(0, state.muzzleFlash - dt);
+
+        for (const explosion of explosions) {
+          explosion.life -= dt;
+        }
+        explosions = explosions.filter((e) => e.life > 0);
 
         if (keys.has("ArrowLeft")) player.angle -= 1.9 * dt;
         if (keys.has("ArrowRight")) player.angle += 1.9 * dt;
@@ -330,6 +348,7 @@
             if (dist < 2.0) {
               enemy.hp = 0;
               bullet.life = 0;
+              addExplosion(enemy.x, enemy.z);
               state.score += 10;
               break;
             }
@@ -502,6 +521,31 @@
         }
       }
 
+      function drawExplosions() {
+        for (const explosion of explosions) {
+          const p = project(explosion.x, 0, explosion.z);
+          if (!p) continue;
+          const t = 1 - explosion.life / explosion.maxLife;
+          const radius = (18 + t * 42) * explosion.size * p.scale * 0.08;
+          const alpha = clamp(1 - t, 0, 1);
+
+          const glow = ctx.createRadialGradient(p.x, p.y, 1, p.x, p.y, radius * 2.2);
+          glow.addColorStop(0, `rgba(255, 228, 120, ${0.75 * alpha})`);
+          glow.addColorStop(0.35, `rgba(255, 128, 50, ${0.55 * alpha})`);
+          glow.addColorStop(1, "rgba(255, 64, 0, 0)");
+          ctx.fillStyle = glow;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, radius * 2.2, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.strokeStyle = `rgba(255, 245, 220, ${0.7 * alpha})`;
+          ctx.lineWidth = Math.max(2, p.scale * 0.04);
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+      }
+
       function drawPlayerWeapon() {
         const x = state.width * 0.76;
         const y = state.height * 0.82;
@@ -547,6 +591,7 @@
         drawMountains();
         drawGrid();
         drawEnemies();
+        drawExplosions();
         drawBullets();
         drawPlayerWeapon();
         drawVignette();
