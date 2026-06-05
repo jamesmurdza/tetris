@@ -492,13 +492,23 @@
 
       window.addEventListener("keydown", (e) => {
         keys.add(e.code);
-        if (e.code === "Space" || e.code === "ArrowUp" || e.code === "ArrowDown") {
+
+        if (e.code === "Space" || e.key === " ") {
+          e.preventDefault();
+          shoot();
+        }
+
+        if (e.code === "ArrowUp" || e.code === "ArrowDown") {
           e.preventDefault();
         }
+
         if (e.code === "KeyR") reset();
       });
 
-      window.addEventListener("keyup", (e) => keys.delete(e.code));
+      window.addEventListener("keyup", (e) => {
+        if (e.code === "Space") e.preventDefault();
+        keys.delete(e.code);
+      });
       window.addEventListener("resize", resize);
 
       resize();
