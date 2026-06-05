@@ -1,0 +1,509 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mini 3D Action Game</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #05070d;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      canvas {
+        display: block;
+        width: 100vw;
+        height: 100vh;
+        image-rendering: pixelated;
+      }
+
+      .hud {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        color: #e8f1ff;
+      }
+
+      .topbar {
+        display: flex;
+        justify-content: space-between;
+        padding: 14px 16px;
+        font-size: 14px;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+      }
+
+      .panel {
+        position: fixed;
+        left: 16px;
+        bottom: 16px;
+        background: rgba(7, 10, 18, 0.55);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        padding: 10px 12px;
+        font-size: 13px;
+        line-height: 1.45;
+        max-width: 320px;
+        backdrop-filter: blur(6px);
+      }
+
+      .center {
+        position: fixed;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+      }
+
+      .crosshair {
+        width: 20px;
+        height: 20px;
+      }
+
+      .crosshair::before,
+      .crosshair::after {
+        content: "";
+        position: absolute;
+        background: rgba(255, 255, 255, 0.9);
+        box-shadow: 0 0 8px rgba(131, 199, 255, 0.45);
+      }
+
+      .crosshair::before {
+        left: 9px;
+        top: 0;
+        width: 2px;
+        height: 20px;
+      }
+
+      .crosshair::after {
+        top: 9px;
+        left: 0;
+        width: 20px;
+        height: 2px;
+      }
+
+      .overlay {
+        position: fixed;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        background: rgba(0, 0, 0, 0.28);
+        color: white;
+        font-size: clamp(24px, 4vw, 42px);
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-align: center;
+        text-shadow: 0 4px 16px rgba(0, 0, 0, 0.55);
+      }
+
+      .hidden {
+        display: none;
+      }
+
+      .small {
+        display: block;
+        margin-top: 10px;
+        font-size: 14px;
+        font-weight: 500;
+        opacity: 0.9;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="game"></canvas>
+
+    <div class="hud">
+      <div class="topbar">
+        <div id="status">HP: 100</div>
+        <div id="score">Score: 0</div>
+        <div id="wave">Enemies: 0</div>
+      </div>
+      <div class="center"><div class="crosshair"></div></div>
+      <div class="panel">
+        <strong>Controls</strong><br />
+        W A S D - move<br />
+        ← → - turn<br />
+        Space - shoot<br />
+        R - restart
+      </div>
+    </div>
+
+    <div id="overlay" class="overlay hidden">
+      <div>
+        You were overwhelmed.
+        <span class="small">Press R to restart</span>
+      </div>
+    </div>
+
+    <script>
+      const canvas = document.getElementById("game");
+      const ctx = canvas.getContext("2d");
+      const statusEl = document.getElementById("status");
+      const scoreEl = document.getElementById("score");
+      const waveEl = document.getElementById("wave");
+      const overlayEl = document.getElementById("overlay");
+
+      const state = {
+        width: 0,
+        height: 0,
+        dpr: Math.max(1, window.devicePixelRatio || 1),
+        time: 0,
+        last: performance.now(),
+        score: 0,
+        hp: 100,
+        cooldown: 0,
+        spawnTimer: 0,
+        gameOver: false,
+      };
+
+      const player = {
+        x: 0,
+        z: 0,
+        y: 1.1,
+        angle: 0,
+        speed: 6.5,
+      };
+
+      let bullets = [];
+      let enemies = [];
+
+      const keys = new Set();
+
+      function resize() {
+        state.width = window.innerWidth;
+        state.height = window.innerHeight;
+        canvas.width = Math.floor(state.width * state.dpr);
+        canvas.height = Math.floor(state.height * state.dpr);
+        canvas.style.width = state.width + "px";
+        canvas.style.height = state.height + "px";
+        ctx.setTransform(state.dpr, 0, 0, state.dpr, 0, 0);
+      }
+
+      function reset() {
+        player.x = 0;
+        player.z = 0;
+        player.angle = 0;
+        bullets = [];
+        enemies = [];
+        state.score = 0;
+        state.hp = 100;
+        state.cooldown = 0;
+        state.spawnTimer = 0;
+        state.gameOver = false;
+        overlayEl.classList.add("hidden");
+      }
+
+      function rand(min, max) {
+        return Math.random() * (max - min) + min;
+      }
+
+      function clamp(v, min, max) {
+        return Math.max(min, Math.min(max, v));
+      }
+
+      function normalizeAngle(a) {
+        while (a > Math.PI) a -= Math.PI * 2;
+        while (a < -Math.PI) a += Math.PI * 2;
+        return a;
+      }
+
+      function spawnEnemy() {
+        const distance = rand(18, 26);
+        const angle = rand(0, Math.PI * 2);
+        enemies.push({
+          x: player.x + Math.cos(angle) * distance,
+          z: player.z + Math.sin(angle) * distance,
+          y: 0,
+          hp: 1,
+          speed: rand(1.0, 2.2) + state.score * 0.01,
+        });
+      }
+
+      function shoot() {
+        if (state.cooldown > 0 || state.gameOver) return;
+        state.cooldown = 0.18;
+        bullets.push({
+          x: player.x + Math.cos(player.angle) * 1.2,
+          z: player.z + Math.sin(player.angle) * 1.2,
+          y: player.y,
+          vx: Math.cos(player.angle) * 20,
+          vz: Math.sin(player.angle) * 20,
+          life: 1.25,
+        });
+      }
+
+      function update(dt) {
+        state.time += dt;
+        if (state.gameOver) return;
+
+        if (keys.has("ArrowLeft")) player.angle -= 1.9 * dt;
+        if (keys.has("ArrowRight")) player.angle += 1.9 * dt;
+
+        const forward = (keys.has("KeyW") ? 1 : 0) - (keys.has("KeyS") ? 1 : 0);
+        const strafe = (keys.has("KeyD") ? 1 : 0) - (keys.has("KeyA") ? 1 : 0);
+        const sin = Math.sin(player.angle);
+        const cos = Math.cos(player.angle);
+
+        let dx = (cos * forward + Math.cos(player.angle + Math.PI / 2) * strafe) * player.speed * dt;
+        let dz = (sin * forward + Math.sin(player.angle + Math.PI / 2) * strafe) * player.speed * dt;
+
+        const moveLen = Math.hypot(dx, dz);
+        if (moveLen > 0) {
+          const scale = 1 / Math.max(1, moveLen / 0.12);
+          dx *= scale;
+          dz *= scale;
+        }
+
+        player.x += dx;
+        player.z += dz;
+
+        if (keys.has("Space")) shoot();
+
+        state.cooldown = Math.max(0, state.cooldown - dt);
+        state.spawnTimer -= dt;
+        if (state.spawnTimer <= 0) {
+          spawnEnemy();
+          state.spawnTimer = Math.max(0.45, 1.2 - state.score * 0.01);
+        }
+
+        for (const bullet of bullets) {
+          bullet.x += bullet.vx * dt;
+          bullet.z += bullet.vz * dt;
+          bullet.life -= dt;
+        }
+        bullets = bullets.filter((b) => b.life > 0);
+
+        for (const enemy of enemies) {
+          const ang = Math.atan2(player.z - enemy.z, player.x - enemy.x);
+          enemy.x += Math.cos(ang) * enemy.speed * dt;
+          enemy.z += Math.sin(ang) * enemy.speed * dt;
+
+          const dist = Math.hypot(enemy.x - player.x, enemy.z - player.z);
+          if (dist < 1.1) {
+            state.hp -= 28 * dt;
+          }
+        }
+
+        for (const bullet of bullets) {
+          for (const enemy of enemies) {
+            if (enemy.hp <= 0) continue;
+            const dist = Math.hypot(bullet.x - enemy.x, bullet.z - enemy.z);
+            if (dist < 0.9) {
+              enemy.hp = 0;
+              bullet.life = 0;
+              state.score += 10;
+              break;
+            }
+          }
+        }
+
+        bullets = bullets.filter((b) => b.life > 0);
+        enemies = enemies.filter((e) => e.hp > 0);
+
+        if (state.hp <= 0) {
+          state.hp = 0;
+          state.gameOver = true;
+          overlayEl.classList.remove("hidden");
+        }
+      }
+
+      function project(x, y, z) {
+        const dx = x - player.x;
+        const dz = z - player.z;
+        const sin = Math.sin(-player.angle);
+        const cos = Math.cos(-player.angle);
+        const rx = dx * cos - dz * sin;
+        const rz = dx * sin + dz * cos;
+        const ry = y - player.y;
+
+        if (rz <= 0.1) return null;
+
+        const focal = state.height * 0.9;
+        return {
+          x: state.width / 2 + (rx / rz) * focal,
+          y: state.height / 2 - (ry / rz) * focal,
+          scale: focal / rz,
+          depth: rz,
+        };
+      }
+
+      function drawBackground() {
+        const g = ctx.createLinearGradient(0, 0, 0, state.height);
+        g.addColorStop(0, "#08111e");
+        g.addColorStop(0.55, "#0b1423");
+        g.addColorStop(1, "#15231f");
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, state.width, state.height);
+
+        ctx.fillStyle = "rgba(10, 14, 20, 0.95)";
+        ctx.fillRect(0, state.height * 0.55, state.width, state.height * 0.45);
+
+        const horizon = state.height * 0.34;
+        const skyGlow = ctx.createRadialGradient(state.width * 0.5, horizon, 20, state.width * 0.5, horizon, state.width * 0.7);
+        skyGlow.addColorStop(0, "rgba(95, 150, 255, 0.18)");
+        skyGlow.addColorStop(1, "rgba(95, 150, 255, 0)");
+        ctx.fillStyle = skyGlow;
+        ctx.fillRect(0, 0, state.width, state.height * 0.7);
+      }
+
+      function drawGrid() {
+        const spacing = 2;
+        const size = 80;
+        ctx.lineWidth = 1;
+        for (let z = -size; z <= size; z += spacing) {
+          const p1 = project(-size, 0, z);
+          const p2 = project(size, 0, z);
+          if (!p1 || !p2) continue;
+          const alpha = clamp(1 - p1.depth / 40, 0.08, 0.28);
+          ctx.strokeStyle = `rgba(120, 160, 190, ${alpha})`;
+          ctx.beginPath();
+          ctx.moveTo(p1.x, p1.y);
+          ctx.lineTo(p2.x, p2.y);
+          ctx.stroke();
+        }
+        for (let x = -size; x <= size; x += spacing) {
+          const p1 = project(x, 0, -size);
+          const p2 = project(x, 0, size);
+          if (!p1 || !p2) continue;
+          const alpha = clamp(1 - p1.depth / 40, 0.08, 0.28);
+          ctx.strokeStyle = `rgba(120, 160, 190, ${alpha})`;
+          ctx.beginPath();
+          ctx.moveTo(p1.x, p1.y);
+          ctx.lineTo(p2.x, p2.y);
+          ctx.stroke();
+        }
+      }
+
+      function drawBox(x, y, z, size, color) {
+        const p = project(x, y, z);
+        if (!p) return;
+        const s = size * p.scale;
+        const h = s;
+        ctx.fillStyle = color;
+        ctx.strokeStyle = "rgba(255,255,255,0.2)";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.rect(p.x - s / 2, p.y - h, s, h);
+        ctx.fill();
+        ctx.stroke();
+      }
+
+      function drawEnemies() {
+        const sorted = [...enemies].sort((a, b) => {
+          const da = Math.hypot(a.x - player.x, a.z - player.z);
+          const db = Math.hypot(b.x - player.x, b.z - player.z);
+          return db - da;
+        });
+
+        for (const enemy of sorted) {
+          const p = project(enemy.x, 0, enemy.z);
+          if (!p) continue;
+          const scale = clamp(p.scale, 20, 220);
+          const w = scale * 0.75;
+          const h = scale * 1.25;
+          const bob = Math.sin(state.time * 6 + enemy.x * 0.7 + enemy.z * 0.5) * 4;
+          const x = p.x - w / 2;
+          const y = p.y - h + bob;
+          const glow = ctx.createRadialGradient(p.x, y + h * 0.7, 1, p.x, y + h * 0.7, w * 1.5);
+          glow.addColorStop(0, "rgba(255, 80, 80, 0.35)");
+          glow.addColorStop(1, "rgba(255, 80, 80, 0)");
+          ctx.fillStyle = glow;
+          ctx.beginPath();
+          ctx.arc(p.x, y + h * 0.75, w * 0.8, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.fillStyle = "#ff4b4b";
+          ctx.fillRect(x, y, w, h);
+          ctx.fillStyle = "rgba(255,255,255,0.18)";
+          ctx.fillRect(x, y, w, h * 0.14);
+          ctx.strokeStyle = "rgba(255,255,255,0.35)";
+          ctx.strokeRect(x, y, w, h);
+        }
+      }
+
+      function drawBullets() {
+        for (const bullet of bullets) {
+          const p = project(bullet.x, bullet.y, bullet.z);
+          if (!p) continue;
+          const r = clamp(p.scale * 0.12, 2, 7);
+          ctx.fillStyle = "#fff3a1";
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      function drawPlayerWeapon() {
+        const x = state.width * 0.76;
+        const y = state.height * 0.82;
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(-0.08 + Math.sin(state.time * 10) * 0.015);
+
+        ctx.fillStyle = "#1b2333";
+        ctx.fillRect(-60, -14, 120, 28);
+        ctx.fillStyle = "#3e4d67";
+        ctx.fillRect(-22, -20, 44, 40);
+        ctx.fillStyle = "#8fb8ff";
+        ctx.fillRect(18, -6, 54, 12);
+        ctx.fillStyle = "#dce8ff";
+        ctx.fillRect(52, -3, 18, 6);
+        ctx.restore();
+      }
+
+      function drawVignette() {
+        const vignette = ctx.createRadialGradient(
+          state.width / 2,
+          state.height / 2,
+          state.height * 0.2,
+          state.width / 2,
+          state.height / 2,
+          state.height * 0.8,
+        );
+        vignette.addColorStop(0, "rgba(0,0,0,0)");
+        vignette.addColorStop(1, "rgba(0,0,0,0.35)");
+        ctx.fillStyle = vignette;
+        ctx.fillRect(0, 0, state.width, state.height);
+      }
+
+      function render() {
+        drawBackground();
+        drawGrid();
+        drawEnemies();
+        drawBullets();
+        drawPlayerWeapon();
+        drawVignette();
+
+        statusEl.textContent = `HP: ${Math.round(state.hp)}`;
+        scoreEl.textContent = `Score: ${state.score}`;
+        waveEl.textContent = `Enemies: ${enemies.length}`;
+      }
+
+      function loop(now) {
+        const dt = Math.min(0.033, (now - state.last) / 1000);
+        state.last = now;
+        update(dt);
+        render();
+        requestAnimationFrame(loop);
+      }
+
+      window.addEventListener("keydown", (e) => {
+        keys.add(e.code);
+        if (e.code === "Space" || e.code === "ArrowUp" || e.code === "ArrowDown") {
+          e.preventDefault();
+        }
+        if (e.code === "KeyR") reset();
+      });
+
+      window.addEventListener("keyup", (e) => keys.delete(e.code));
+      window.addEventListener("resize", resize);
+
+      resize();
+      reset();
+      requestAnimationFrame(loop);
+    </script>
+  </body>
+</html>
