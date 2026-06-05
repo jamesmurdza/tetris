@@ -232,21 +232,24 @@
         const shotZ = player.z + Math.sin(player.angle) * 1.2;
 
         let bestEnemy = null;
-        let bestScore = Infinity;
+        let bestDistance = Infinity;
         for (const enemy of enemies) {
           if (enemy.hp <= 0) continue;
           const dx = enemy.x - player.x;
           const dz = enemy.z - player.z;
           const dist = Math.hypot(dx, dz);
-          if (dist > 28) continue;
+          if (dist > 40) continue;
 
-          const angleToEnemy = Math.atan2(dz, dx);
-          const angleDiff = Math.abs(normalizeAngle(angleToEnemy - player.angle));
-          if (angleDiff > 0.22) continue;
+          const forwardX = Math.cos(player.angle);
+          const forwardZ = Math.sin(player.angle);
+          const along = dx * forwardX + dz * forwardZ;
+          if (along <= 0) continue;
 
-          const score = dist + angleDiff * 10;
-          if (score < bestScore) {
-            bestScore = score;
+          const perpendicular = Math.abs(dx * forwardZ - dz * forwardX);
+          if (perpendicular > 2.2) continue;
+
+          if (along < bestDistance) {
+            bestDistance = along;
             bestEnemy = enemy;
           }
         }
@@ -324,7 +327,7 @@
           for (const enemy of enemies) {
             if (enemy.hp <= 0) continue;
             const dist = Math.hypot(bullet.x - enemy.x, bullet.z - enemy.z);
-            if (dist < 1.15) {
+            if (dist < 2.0) {
               enemy.hp = 0;
               bullet.life = 0;
               state.score += 10;
