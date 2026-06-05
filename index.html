@@ -227,9 +227,38 @@
         if (state.cooldown > 0 || state.gameOver) return;
         state.cooldown = 0.18;
         state.muzzleFlash = 0.08;
+
+        const shotX = player.x + Math.cos(player.angle) * 1.2;
+        const shotZ = player.z + Math.sin(player.angle) * 1.2;
+
+        let bestEnemy = null;
+        let bestScore = Infinity;
+        for (const enemy of enemies) {
+          if (enemy.hp <= 0) continue;
+          const dx = enemy.x - player.x;
+          const dz = enemy.z - player.z;
+          const dist = Math.hypot(dx, dz);
+          if (dist > 28) continue;
+
+          const angleToEnemy = Math.atan2(dz, dx);
+          const angleDiff = Math.abs(normalizeAngle(angleToEnemy - player.angle));
+          if (angleDiff > 0.22) continue;
+
+          const score = dist + angleDiff * 10;
+          if (score < bestScore) {
+            bestScore = score;
+            bestEnemy = enemy;
+          }
+        }
+
+        if (bestEnemy) {
+          bestEnemy.hp = 0;
+          state.score += 10;
+        }
+
         bullets.push({
-          x: player.x + Math.cos(player.angle) * 1.2,
-          z: player.z + Math.sin(player.angle) * 1.2,
+          x: shotX,
+          z: shotZ,
           y: player.y,
           vx: Math.cos(player.angle) * 20,
           vz: Math.sin(player.angle) * 20,
@@ -295,7 +324,7 @@
           for (const enemy of enemies) {
             if (enemy.hp <= 0) continue;
             const dist = Math.hypot(bullet.x - enemy.x, bullet.z - enemy.z);
-            if (dist < 0.9) {
+            if (dist < 1.15) {
               enemy.hp = 0;
               bullet.life = 0;
               state.score += 10;
