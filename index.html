@@ -378,10 +378,10 @@
         ctx.fillStyle = skyGlow;
         ctx.fillRect(0, 0, state.width, state.height * 0.7);
 
-        // Distant mountain silhouettes that subtly parallax when turning
-        function drawMountainBand(points, fill, offsetY = 0, parallax = 1) {
+        // Distant mountain silhouettes that move one-to-one with turning
+        function drawMountainBand(points, fill, offsetY = 0) {
           const w = state.width;
-          const shift = ((player.angle * 80 * parallax) % w + w) % w;
+          const shift = -player.angle * (w / (Math.PI * 2));
 
           for (const wrap of [-w, 0, w]) {
             ctx.fillStyle = fill;
@@ -413,7 +413,6 @@
           ],
           "rgba(21, 31, 48, 0.92)",
           -14,
-          0.55,
         );
 
         drawMountainBand(
@@ -431,7 +430,6 @@
           ],
           "rgba(12, 19, 31, 0.98)",
           22,
-          1,
         );
 
         ctx.fillStyle = "rgba(10, 14, 20, 0.95)";
